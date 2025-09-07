@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/psyb0t/ctxerrors"
 	commonerrors "github.com/psyb0t/common-go/errors"
+	"github.com/psyb0t/ctxerrors"
 	"github.com/sirupsen/logrus"
 )
 
