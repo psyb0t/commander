@@ -82,7 +82,10 @@ func (p *process) readStdout(stdout io.ReadCloser) {
 		select {
 		case <-p.doneCh:
 			// Process is done, stop reading
-			logrus.Debugf("stdout reader stopping after %d lines (process done)", lineCount)
+			logrus.Debugf(
+				"stdout reader stopping after %d lines (process done)",
+				lineCount,
+			)
 
 			return
 		case p.internalStdout <- line:
@@ -91,10 +94,19 @@ func (p *process) readStdout(stdout io.ReadCloser) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		logrus.Debugf("stdout scanner error after %d lines: %v", lineCount, err)
-	} else {
-		logrus.Debugf("stdout reader finished successfully after %d lines", lineCount)
+		logrus.Debugf(
+			"stdout scanner error after %d lines: %v",
+			lineCount,
+			err,
+		)
+
+		return
 	}
+
+	logrus.Debugf(
+		"stdout reader finished successfully after %d lines",
+		lineCount,
+	)
 }
 
 // readStderr reads from stderr pipe and sends to internal channel
@@ -119,7 +131,10 @@ func (p *process) readStderr(stderr io.ReadCloser) {
 		select {
 		case <-p.doneCh:
 			// Process is done, stop reading
-			logrus.Debugf("stderr reader stopping after %d lines (process done)", lineCount)
+			logrus.Debugf(
+				"stderr reader stopping after %d lines (process done)",
+				lineCount,
+			)
 
 			return
 		case p.internalStderr <- line:
@@ -128,14 +143,26 @@ func (p *process) readStderr(stderr io.ReadCloser) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		logrus.Debugf("stderr scanner error after %d lines: %v", lineCount, err)
-	} else {
-		logrus.Debugf("stderr reader finished successfully after %d lines", lineCount)
+		logrus.Debugf(
+			"stderr scanner error after %d lines: %v",
+			lineCount,
+			err,
+		)
+
+		return
 	}
+
+	logrus.Debugf(
+		"stderr reader finished successfully after %d lines",
+		lineCount,
+	)
 }
 
-// Stop terminates the process gracefully with timeout, then kills forcefully
-func (p *process) Stop(ctx context.Context, timeout time.Duration) error {
+// Stop terminates the process gracefully with context deadline, then kills forcefully
+func (p *process) Stop(
+	ctx context.Context,
+	opts ...StopOption,
+) error {
 	var stopErr error
 
 	// Use sync.Once to ensure all cleanup happens exactly once
@@ -144,8 +171,16 @@ func (p *process) Stop(ctx context.Context, timeout time.Duration) error {
 
 		// Step 1: Stop/kill the actual process if it's running
 		if p.cmd.Process != nil {
-			logrus.Debugf("stopping process PID %d with timeout %v", p.cmd.Process.Pid, timeout)
-			stopErr = p.killProcess(ctx, timeout)
+			logrus.Debugf("stopping process PID %d", p.cmd.Process.Pid)
+			// Build stop options
+			options := &StopOptions{
+				Signal: syscall.SIGTERM, // Default signal
+			}
+			for _, opt := range opts {
+				opt(options)
+			}
+
+			stopErr = p.killProcess(ctx, options)
 		} else {
 			logrus.Debug("stop requested but process has no PID - cleaning up anyway")
 		}
@@ -172,32 +207,62 @@ func (p *process) Stop(ctx context.Context, timeout time.Duration) error {
 	return stopErr
 }
 
-// killProcess handles the actual process termination with timeout
-func (p *process) killProcess(ctx context.Context, timeout time.Duration) error {
-	// If no timeout specified, skip graceful termination and force kill immediately
-	if timeout <= 0 {
-		logrus.Debugf("no timeout specified for process PID %d, force killing immediately", p.cmd.Process.Pid)
+// killProcess handles the actual process termination with context deadline
+func (p *process) killProcess(
+	ctx context.Context,
+	options *StopOptions,
+) error {
+	// Check if context has no deadline, skip graceful termination and
+	// force kill immediately
+	_, hasDeadline := ctx.Deadline()
+	if !hasDeadline {
+		logrus.Debugf(
+			"no deadline in context for process PID %d, "+
+				"force killing immediately",
+			p.cmd.Process.Pid,
+		)
 
 		return p.forceKill()
 	}
 
-	// First try graceful termination (SIGTERM)
-	logrus.Debugf("attempting graceful termination (SIGTERM) for process PID %d", p.cmd.Process.Pid)
+	// First try graceful termination with specified signal
+	logrus.Debugf(
+		"attempting graceful termination (%v) for process PID %d",
+		options.Signal,
+		p.cmd.Process.Pid,
+	)
 
-	if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
-		logrus.Debugf("failed to send SIGTERM to process PID %d, forcing kill: %v", p.cmd.Process.Pid, err)
+	if err := p.cmd.Process.Signal(options.Signal); err != nil {
+		logrus.Debugf(
+			"failed to send %v to process PID %d, forcing kill: %v",
+			options.Signal,
+			p.cmd.Process.Pid,
+			err,
+		)
 		// If we can't signal, try killing immediately
 		return p.forceKill()
 	}
 
-	// Wait for graceful shutdown or force kill after timeout
-	logrus.Debugf("SIGTERM sent to process PID %d, waiting %v for graceful shutdown", p.cmd.Process.Pid, timeout)
+	return p.waitForGracefulShutdown(ctx, options.Signal)
+}
 
-	// Create a timeout context
-	stopCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+// waitForGracefulShutdown waits for process to exit or context deadline
+func (p *process) waitForGracefulShutdown(
+	ctx context.Context,
+	signal syscall.Signal,
+) error {
+	deadline, _ := ctx.Deadline()
+	timeout := time.Until(deadline)
 
-	// Wait for either graceful shutdown or timeout
+	// Wait for graceful shutdown or force kill after context deadline
+	logrus.Debugf(
+		"%v sent to process PID %d, waiting %v for graceful shutdown",
+		signal,
+		p.cmd.Process.Pid,
+		timeout,
+	)
+
+	// Wait for either graceful shutdown or context deadline
 	done := make(chan error, 1)
 
 	go func() {
@@ -212,9 +277,9 @@ func (p *process) killProcess(ctx context.Context, timeout time.Duration) error 
 			return nil
 		}
 
-		// Check if process was terminated by SIGTERM (our signal)
-		if isTerminatedBySignal(err) {
-			logrus.Debug("process gracefully terminated by SIGTERM")
+		// Check if process was terminated by our signal
+		if getTerminationSignal(err) == signal {
+			logrus.Debugf("process gracefully terminated by %v", signal)
 
 			return commonerrors.ErrTerminated
 		}
@@ -228,9 +293,13 @@ func (p *process) killProcess(ctx context.Context, timeout time.Duration) error 
 
 		return err
 
-	case <-stopCtx.Done():
-		// Timeout reached, force kill
-		logrus.Debugf("graceful shutdown timeout reached for process PID %d, force killing", p.cmd.Process.Pid)
+	case <-ctx.Done():
+		// Context deadline reached, force kill
+		logrus.Debugf(
+			"graceful shutdown deadline reached for process PID %d, "+
+				"force killing",
+			p.cmd.Process.Pid,
+		)
 
 		return p.forceKill()
 	}
@@ -248,12 +317,19 @@ func (p *process) forceKill() error {
 			return nil
 		}
 
-		logrus.Debugf("failed to force kill process PID %d: %v", p.cmd.Process.Pid, err)
+		logrus.Debugf(
+			"failed to force kill process PID %d: %v",
+			p.cmd.Process.Pid,
+			err,
+		)
 
 		return ctxerrors.Wrap(err, "failed to force kill process")
 	}
 
-	logrus.Debugf("SIGKILL sent to process PID %d, waiting for process to exit", p.cmd.Process.Pid)
+	logrus.Debugf(
+		"SIGKILL sent to process PID %d, waiting for process to exit",
+		p.cmd.Process.Pid,
+	)
 
 	// Wait for process to exit after SIGKILL
 	err := p.cmdWait()
@@ -261,6 +337,13 @@ func (p *process) forceKill() error {
 		// Check if process was killed by SIGKILL (expected)
 		if isKilledBySignal(err) {
 			logrus.Debug("process successfully killed by SIGKILL")
+
+			return commonerrors.ErrKilled
+		}
+
+		// Check if process was terminated by SIGTERM (also fine - means it died)
+		if isTerminatedBySignal(err) {
+			logrus.Debug("process was terminated by SIGTERM during force kill")
 
 			return commonerrors.ErrKilled
 		}
@@ -273,6 +356,7 @@ func (p *process) forceKill() error {
 		return ctxerrors.Wrap(err, "process failed after SIGKILL")
 	}
 
-	// Process exited normally after SIGKILL (shouldn't happen but handle gracefully)
+	// Process exited normally after SIGKILL
+	// (shouldn't happen but handle gracefully)
 	return commonerrors.ErrKilled
 }

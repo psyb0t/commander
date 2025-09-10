@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	commonerrors "github.com/psyb0t/common-go/errors"
 	"github.com/psyb0t/ctxerrors"
@@ -32,12 +31,12 @@ type Process interface {
 	// Pass nil for channels you don't want to listen to
 	Stream(stdout, stderr chan<- string)
 
-	// Stop terminates the process gracefully with timeout, then kills forcefully
-	// First tries SIGTERM, then SIGKILL after timeout
-	Stop(ctx context.Context, timeout time.Duration) error
+	// Stop terminates the process gracefully with context deadline, then kills forcefully
+	// First tries SIGTERM (or custom signal), then SIGKILL after context deadline
+	Stop(ctx context.Context, opts ...StopOption) error
 
 	// Kill immediately terminates the process with SIGKILL (no graceful period)
-	// Equivalent to Stop(ctx, 0)
+	// Equivalent to Stop(ctx) with zero timeout context
 	Kill(ctx context.Context) error
 }
 
@@ -51,17 +50,20 @@ type streamChannels struct {
 type process struct {
 	cmd *exec.Cmd
 
-	internalStdout chan string        // Always created and read from
-	internalStderr chan string        // Always created and read from
-	streamChans    []streamChannels   // Active stream channels
-	streamMu       sync.Mutex         // Protects streamChans
-	doneCh         chan struct{}      // Signal to stop all goroutines and close channels
-	stopOnce       sync.Once          // Ensure Stop() is only called once (master cleanup)
-	cmdWaitOnce    sync.Once          // Ensure cmd.Wait() is only called once
-	cmdWaitResult  error              // Result from cmd.Wait()
-	waitCh         chan struct{}      // Closed when cmd.Wait() completes
-	cancelTimeout  context.CancelFunc // Cancel function for timeout context
-	timeoutCtx     context.Context    //nolint:containedctx // needed for timeout error detection
+	internalStdout chan string      // Always created and read from
+	internalStderr chan string      // Always created and read from
+	streamChans    []streamChannels // Active stream channels
+	streamMu       sync.Mutex       // Protects streamChans
+	doneCh         chan struct{}    // Signal to stop all goroutines
+	// and close channels
+	stopOnce sync.Once // Ensure Stop() is only called
+	// once (master cleanup)
+	cmdWaitOnce   sync.Once          // Ensure cmd.Wait() is only called once
+	cmdWaitResult error              // Result from cmd.Wait()
+	waitCh        chan struct{}      // Closed when cmd.Wait() completes
+	cancelTimeout context.CancelFunc // Cancel function for timeout context
+	timeoutCtx    context.Context    //nolint:containedctx
+	// needed for timeout error detection
 }
 
 // cmdWait ensures cmd.Wait() is only called once, even from multiple goroutines
@@ -88,7 +90,7 @@ func (p *process) Wait() error {
 
 	defer func() {
 		// Always ensure stop happens when Wait() completes
-		_ = p.Stop(context.Background(), 0)
+		_ = p.Stop(context.Background())
 	}()
 
 	// Process should already be started by Start() - just wait for it
@@ -108,8 +110,10 @@ func (p *process) Wait() error {
 
 	if err != nil {
 		logrus.Debugf("process wait failed with error: %v", err)
-		// Check if this was a timeout error (specifically DeadlineExceeded, not just any context error)
-		if p.timeoutCtx != nil && errors.Is(p.timeoutCtx.Err(), context.DeadlineExceeded) {
+		// Check if this was a timeout error
+		// (specifically DeadlineExceeded, not just any context error)
+		if p.timeoutCtx != nil &&
+			errors.Is(p.timeoutCtx.Err(), context.DeadlineExceeded) {
 			logrus.Debug("process failed due to timeout")
 
 			return commonerrors.ErrTimeout
@@ -151,16 +155,20 @@ func (p *process) StdinPipe() (io.WriteCloser, error) {
 func (p *process) Kill(ctx context.Context) error {
 	logrus.Debug("kill requested - performing immediate force kill")
 
-	return p.Stop(ctx, 0)
+	// Create context with no deadline to force immediate kill
+	return p.Stop(ctx)
 }
 
-// isHarmlessWaitError checks if the error is a harmless "no child processes" error
+// isHarmlessWaitError checks if the error is a harmless
+// "no child processes" error
 // that can occur during process cleanup and should be ignored
 func isHarmlessWaitError(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "waitid: no child processes")
+	return err != nil &&
+		strings.Contains(err.Error(), "waitid: no child processes")
 }
 
-// getTerminationSignal checks if the process was terminated by a signal and returns the signal
+// getTerminationSignal checks if the process was terminated by a
+// signal and returns the signal
 func getTerminationSignal(err error) syscall.Signal {
 	if err == nil {
 		return 0

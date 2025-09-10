@@ -154,7 +154,9 @@ func TestMockCommander_ProcessControl(t *testing.T) {
 		require.NoError(t, err)
 
 		// Stop should work without error
-		err = proc.Stop(context.Background(), 1*time.Second)
+		stopCtx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		defer cancel()
+		err = proc.Stop(stopCtx)
 		assert.NoError(t, err)
 
 		err = proc.Wait()

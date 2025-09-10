@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/psyb0t/ctxerrors"
 )
@@ -57,18 +56,21 @@ func (m *AnyMatcher) String() string {
 }
 
 // Helper functions for creating matchers
-func Exact(s string) ArgumentMatcher { //nolint:ireturn // factory function for matcher interface
+func Exact(s string) ArgumentMatcher { //nolint:ireturn
+	// factory function for matcher interface
 	return &ExactMatcher{expected: s}
 }
 
-func Regex(pattern string) ArgumentMatcher { //nolint:ireturn // factory function for matcher interface
+func Regex(pattern string) ArgumentMatcher { //nolint:ireturn
+	// factory function for matcher interface
 	return &RegexMatcher{
 		pattern: regexp.MustCompile(pattern),
 		raw:     pattern,
 	}
 }
 
-func Any() ArgumentMatcher { //nolint:ireturn // factory function for matcher interface
+func Any() ArgumentMatcher { //nolint:ireturn
+	// factory function for matcher interface
 	return &AnyMatcher{}
 }
 
@@ -216,7 +218,10 @@ func (m *MockCommander) execute(
 		}
 	}
 
-	return nil, ctxerrors.Wrap(ErrUnexpectedCommand, "unexpected command")
+	return nil, ctxerrors.Wrap(
+		ErrUnexpectedCommand,
+		"unexpected command",
+	)
 }
 
 func (m *MockCommander) VerifyExpectations() error {
@@ -225,7 +230,10 @@ func (m *MockCommander) VerifyExpectations() error {
 
 	for _, exp := range m.expectations {
 		if !exp.Called {
-			return ctxerrors.Wrap(ErrExpectedCommandNotCalled, "expected command not called")
+			return ctxerrors.Wrap(
+				ErrExpectedCommandNotCalled,
+				"expected command not called",
+			)
 		}
 	}
 
@@ -347,7 +355,8 @@ func (p *mockProcess) Stream(
 		copy(lines, p.streamLines[startIndex:])
 		p.streamMu.Unlock()
 
-		// Send all available lines to stdout channel (mock assumes stdout)
+		// Send all available lines to stdout channel
+		// (mock assumes stdout)
 		for _, line := range lines {
 			if stdout != nil {
 				select {
@@ -381,7 +390,7 @@ func (p *mockProcess) SimulateStreamLine(line string) {
 
 func (p *mockProcess) Stop(
 	_ context.Context,
-	_ time.Duration,
+	_ ...StopOption,
 ) error {
 	p.streamMu.Lock()
 	defer p.streamMu.Unlock()
@@ -392,7 +401,7 @@ func (p *mockProcess) Stop(
 }
 
 func (p *mockProcess) Kill(ctx context.Context) error {
-	return p.Stop(ctx, 0)
+	return p.Stop(ctx)
 }
 
 // Utility functions

@@ -27,7 +27,8 @@ type Commander interface {
 		opts ...Option,
 	) (stdout []byte, stderr []byte, err error)
 
-	// CombinedOutput executes a command and returns combined stdout+stderr and error
+	// CombinedOutput executes a command and returns combined
+	// stdout+stderr and error
 	CombinedOutput(
 		ctx context.Context,
 		name string,
@@ -45,7 +46,8 @@ type Commander interface {
 }
 
 // New creates a new commander instance
-func New() Commander { //nolint:ireturn // factory function returns interface by design
+func New() Commander { //nolint:ireturn
+	// factory function returns interface by design
 	return &commander{}
 }
 
@@ -64,7 +66,10 @@ func (c *commander) applyTimeout(
 	}
 
 	if opts != nil && opts.Timeout != nil && *opts.Timeout <= 0 {
-		logrus.Debugf("timeout duration %v is <= 0, treating as no timeout", *opts.Timeout)
+		logrus.Debugf(
+			"timeout duration %v is <= 0, treating as no timeout",
+			*opts.Timeout,
+		)
 
 		return ctx, func() {}
 	}
@@ -180,16 +185,19 @@ func (c *commander) Start(
 func (c *commander) newProcess(
 	cmd *exec.Cmd,
 	cancel context.CancelFunc,
-	timeoutCtx context.Context, //nolint:revive // context not first param by design
+	timeoutCtx context.Context, //nolint:revive
+	// context not first param by design
 ) *process {
 	return &process{
 		cmd:            cmd,
-		internalStdout: make(chan string), // Unbuffered - always drained by discardInternalOutput
+		internalStdout: make(chan string), // Unbuffered - always drained
+		// by discardInternalOutput
 		internalStderr: make(chan string),
 		doneCh:         make(chan struct{}), // Signal channel to stop all goroutines
 		waitCh:         make(chan struct{}), // Closed when cmd.Wait() completes
 		cancelTimeout:  cancel,              // Store cancel function for cleanup
-		timeoutCtx:     timeoutCtx,          // Store timeout context for error checking
+		timeoutCtx:     timeoutCtx,          // Store timeout context
+		// for error checking
 	}
 }
 

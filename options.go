@@ -2,6 +2,7 @@ package commander
 
 import (
 	"io"
+	"syscall"
 	"time"
 )
 
@@ -14,6 +15,14 @@ type Options struct {
 	Env     []string
 	Dir     string
 	Timeout *time.Duration
+}
+
+// StopOption configures process stop behavior
+type StopOption func(*StopOptions)
+
+// StopOptions for configuring process termination
+type StopOptions struct {
+	Signal syscall.Signal
 }
 
 // Option functions using Go idiom
@@ -38,5 +47,12 @@ func WithDir(dir string) Option {
 func WithTimeout(timeout time.Duration) Option {
 	return func(o *Options) {
 		o.Timeout = &timeout
+	}
+}
+
+// WithSignal sets the signal to use for graceful termination
+func WithSignal(signal syscall.Signal) StopOption {
+	return func(o *StopOptions) {
+		o.Signal = signal
 	}
 }
