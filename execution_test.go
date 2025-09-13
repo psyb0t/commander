@@ -23,42 +23,22 @@ func TestExecutionContext_HandleExecutionError(t *testing.T) {
 			setupContext: func() *executionContext {
 				ctx := context.Background()
 				return &executionContext{
-					ctx:        ctx,
-					timeoutCtx: ctx,
-					name:       "test",
-					args:       []string{"arg"},
+					ctx:  ctx,
+					name: "test",
+					args: []string{"arg"},
 				}
 			},
 			inputError:     nil,
 			expectedResult: nil,
 		},
 		{
-			name: "timeout error returns ErrTimeout",
-			setupContext: func() *executionContext {
-				ctx := context.Background()
-				timeoutCtx, cancel := context.WithTimeout(ctx, 1*time.Nanosecond)
-				cancel()            // Force timeout
-				<-timeoutCtx.Done() // Wait for timeout
-
-				return &executionContext{
-					ctx:        ctx,
-					timeoutCtx: timeoutCtx,
-					name:       "test",
-					args:       []string{"arg"},
-				}
-			},
-			inputError:     errors.New("some error"),
-			expectedResult: commonerrors.ErrTimeout,
-		},
-		{
 			name: "regular error gets wrapped",
 			setupContext: func() *executionContext {
 				ctx := context.Background()
 				return &executionContext{
-					ctx:        ctx,
-					timeoutCtx: ctx,
-					name:       "test",
-					args:       []string{"arg"},
+					ctx:  ctx,
+					name: "test",
+					args: []string{"arg"},
 				}
 			},
 			inputError:     errors.New("command failed"),
@@ -88,45 +68,13 @@ func TestExecutionContext_HandleExecutionError(t *testing.T) {
 	}
 }
 
-func TestExecutionContext_Cleanup(t *testing.T) {
-	t.Run("cleanup calls cancel function", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-
-		ec := &executionContext{
-			ctx:    ctx,
-			cancel: cancel,
-		}
-
-		// Context should not be cancelled initially
-		assert.NoError(t, ctx.Err())
-
-		ec.cleanup()
-
-		// Context should be cancelled after cleanup
-		assert.Error(t, ctx.Err())
-		assert.Equal(t, context.Canceled, ctx.Err())
-	})
-
-	t.Run("cleanup with nil cancel does not panic", func(t *testing.T) {
-		ec := &executionContext{
-			cancel: nil,
-		}
-
-		// Should not panic
-		assert.NotPanics(t, func() {
-			ec.cleanup()
-		})
-	})
-}
 
 func TestNewExecutionContext(t *testing.T) {
 	cmd := &commander{}
 	ctx := context.Background()
 	name := "echo"
 	args := []string{"test"}
-	opts := &Options{
-		Timeout: func() *time.Duration { d := 5 * time.Second; return &d }(),
-	}
+	opts := &Options{}
 
 	ec := cmd.newExecutionContext(ctx, name, args, opts)
 
@@ -134,12 +82,7 @@ func TestNewExecutionContext(t *testing.T) {
 	assert.Equal(t, ctx, ec.ctx)
 	assert.Equal(t, name, ec.name)
 	assert.Equal(t, args, ec.args)
-	assert.NotNil(t, ec.cancel)
 	assert.NotNil(t, ec.cmd)
-	assert.NotNil(t, ec.timeoutCtx)
-
-	// Cleanup to avoid resource leaks in tests
-	ec.cleanup()
 }
 
 func TestSignalDetection(t *testing.T) {

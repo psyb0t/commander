@@ -227,7 +227,7 @@ func TestCommander_ContextCancellation(t *testing.T) {
 			args:        []string{"1"},
 			expectError: true,
 			errorCheck: func(t *testing.T, err error) {
-				// With our new WithTimeout option, we should get ErrTimeout
+				// With context timeout, we should get ErrTimeout
 				assert.ErrorIs(t, err, commonerrors.ErrTimeout, "Expected ErrTimeout, got: %s", err)
 			},
 		},
@@ -247,8 +247,10 @@ func TestCommander_ContextCancellation(t *testing.T) {
 
 			var err error
 			if tt.timeout > 0 {
-				// Use our new WithTimeout option
-				err = cmd.Run(ctx, tt.command, tt.args, WithTimeout(tt.timeout))
+				// Use context timeout
+				timeoutCtx, cancel := context.WithTimeout(ctx, tt.timeout)
+				defer cancel()
+				err = cmd.Run(timeoutCtx, tt.command, tt.args)
 			} else {
 				err = cmd.Run(ctx, tt.command, tt.args)
 			}
@@ -797,8 +799,10 @@ func TestCommander_OutputAndCombinedOutput(t *testing.T) {
 		cmd := New()
 		ctx := context.Background()
 
-		// Command that takes too long with our new WithTimeout option
-		_, _, err := cmd.Output(ctx, "sleep", []string{"1"}, WithTimeout(50*time.Millisecond))
+		// Command that takes too long with context timeout
+		timeoutCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+		defer cancel()
+		_, _, err := cmd.Output(timeoutCtx, "sleep", []string{"1"})
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, commonerrors.ErrTimeout, "Expected ErrTimeout, got: %s", err)
 	})
@@ -807,8 +811,10 @@ func TestCommander_OutputAndCombinedOutput(t *testing.T) {
 		cmd := New()
 		ctx := context.Background()
 
-		// Command that takes too long with our new WithTimeout option
-		_, _, err := cmd.Output(ctx, "sleep", []string{"1"}, WithTimeout(50*time.Millisecond))
+		// Command that takes too long with context timeout
+		timeoutCtx, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
+		defer cancel()
+		_, _, err := cmd.Output(timeoutCtx, "sleep", []string{"1"})
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, commonerrors.ErrTimeout, "Expected ErrTimeout, got: %s", err)
 	})
@@ -1130,7 +1136,9 @@ func TestCommander_WithTimeout(t *testing.T) {
 
 			switch tt.method {
 			case "run":
-				err := cmd.Run(ctx, tt.command, tt.args, WithTimeout(tt.timeout))
+				timeoutCtx, cancel := context.WithTimeout(ctx, tt.timeout)
+				defer cancel()
+				err := cmd.Run(timeoutCtx, tt.command, tt.args)
 				if tt.expectError {
 					assert.Error(t, err)
 					if tt.errorType != nil {
@@ -1141,7 +1149,9 @@ func TestCommander_WithTimeout(t *testing.T) {
 				}
 
 			case "output":
-				stdout, _, err := cmd.Output(ctx, tt.command, tt.args, WithTimeout(tt.timeout))
+				timeoutCtx, cancel := context.WithTimeout(ctx, tt.timeout)
+				defer cancel()
+				stdout, _, err := cmd.Output(timeoutCtx, tt.command, tt.args)
 				if tt.expectError {
 					assert.Error(t, err)
 					if tt.errorType != nil {
@@ -1155,7 +1165,9 @@ func TestCommander_WithTimeout(t *testing.T) {
 				}
 
 			case "start":
-				proc, startErr := cmd.Start(ctx, tt.command, tt.args, WithTimeout(tt.timeout))
+				timeoutCtx, cancel := context.WithTimeout(ctx, tt.timeout)
+				defer cancel()
+				proc, startErr := cmd.Start(timeoutCtx, tt.command, tt.args)
 				if startErr != nil {
 					t.Fatalf("Start() failed: %v", startErr)
 				}
@@ -1180,7 +1192,7 @@ func TestCommander_WithTimeout_EdgeCases(t *testing.T) {
 		ctx := context.Background()
 
 		// Zero timeout should be treated as "no timeout"
-		err := cmd.Run(ctx, "echo", []string{"hello"}, WithTimeout(0))
+		err := cmd.Run(ctx, "echo", []string{"hello"})
 		assert.NoError(t, err, "Zero timeout should be treated as no timeout")
 	})
 
@@ -1189,7 +1201,7 @@ func TestCommander_WithTimeout_EdgeCases(t *testing.T) {
 		ctx := context.Background()
 
 		// Negative timeout should be treated as "no timeout"
-		err := cmd.Run(ctx, "echo", []string{"hello"}, WithTimeout(-5*time.Second))
+		err := cmd.Run(ctx, "echo", []string{"hello"})
 		assert.NoError(t, err, "Negative timeout should be treated as no timeout")
 	})
 
@@ -1198,7 +1210,7 @@ func TestCommander_WithTimeout_EdgeCases(t *testing.T) {
 		ctx := context.Background()
 
 		// Zero timeout should be treated as "no timeout"
-		stdout, stderr, err := cmd.Output(ctx, "echo", []string{"test output"}, WithTimeout(0))
+		stdout, stderr, err := cmd.Output(ctx, "echo", []string{"test output"})
 		assert.NoError(t, err, "Zero timeout should be treated as no timeout")
 		assert.Equal(t, "test output\n", string(stdout))
 		assert.Empty(t, stderr)
@@ -1209,7 +1221,7 @@ func TestCommander_WithTimeout_EdgeCases(t *testing.T) {
 		ctx := context.Background()
 
 		// Negative timeout should be treated as "no timeout"
-		proc, err := cmd.Start(ctx, "echo", []string{"test"}, WithTimeout(-1*time.Second))
+		proc, err := cmd.Start(ctx, "echo", []string{"test"})
 		assert.NoError(t, err, "Negative timeout should be treated as no timeout")
 		assert.NotNil(t, proc)
 
@@ -1222,7 +1234,9 @@ func TestCommander_WithTimeout_EdgeCases(t *testing.T) {
 		ctx := context.Background()
 
 		// 1 nanosecond timeout should timeout
-		err := cmd.Run(ctx, "sleep", []string{"0.1"}, WithTimeout(1*time.Nanosecond))
+		timeoutCtx, cancel := context.WithTimeout(ctx, 1*time.Nanosecond)
+		defer cancel()
+		err := cmd.Run(timeoutCtx, "sleep", []string{"0.1"})
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, commonerrors.ErrTimeout)
 	})
@@ -1233,7 +1247,9 @@ func TestCommander_WithTimeout_EdgeCases(t *testing.T) {
 		cancel() // Cancel immediately
 
 		// Should return context cancelled error, not timeout
-		err := cmd.Run(ctx, "echo", []string{"test"}, WithTimeout(1*time.Second))
+		timeoutCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+		defer cancel()
+		err := cmd.Run(timeoutCtx, "echo", []string{"test"})
 		assert.Error(t, err)
 		// Should be context cancelled, not timeout
 		assert.NotErrorIs(t, err, commonerrors.ErrTimeout)
@@ -1243,11 +1259,10 @@ func TestCommander_WithTimeout_EdgeCases(t *testing.T) {
 		cmd := New()
 		ctx := context.Background()
 
-		// Multiple WithTimeout options - the last one should be used
-		err := cmd.Run(ctx, "sleep", []string{"1"},
-			WithTimeout(10*time.Second),       // This should be overridden
-			WithTimeout(100*time.Millisecond), // This should be used
-		)
+		// Use direct context timeout instead of multiple options
+		timeoutCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		err := cmd.Run(timeoutCtx, "sleep", []string{"1"})
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, commonerrors.ErrTimeout)
 	})
@@ -1392,17 +1407,19 @@ func TestCommander_ContextCancellation_Immediate(t *testing.T) {
 
 	t.Run("context cancellation vs timeout precedence", func(t *testing.T) {
 		cmd := New()
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancelCtx := context.WithCancel(context.Background())
 
 		startTime := time.Now()
 
 		// Cancel after 50ms, but timeout is set to 1 second
 		go func() {
 			time.Sleep(50 * time.Millisecond)
-			cancel()
+			cancelCtx()
 		}()
 
-		err := cmd.Run(ctx, "sleep", []string{"5"}, WithTimeout(1*time.Second))
+		timeoutCtx, cancelTimeout := context.WithTimeout(ctx, 1*time.Second)
+		defer cancelTimeout()
+		err := cmd.Run(timeoutCtx, "sleep", []string{"5"})
 		elapsed := time.Since(startTime)
 
 		// Should be cancelled by context (50ms), not timeout (1s)
@@ -2085,5 +2102,42 @@ func TestCommander_RaceDetection(t *testing.T) {
 		case <-time.After(15 * time.Second):
 			t.Fatal("Stress test timed out")
 		}
+	})
+}
+
+func TestCommander_UncoveredMethods(t *testing.T) {
+	t.Run("PID method coverage", func(t *testing.T) {
+		cmd := New()
+		ctx := context.Background()
+
+		// Start a process
+		proc, err := cmd.Start(ctx, "sleep", []string{"0.1"})
+		require.NoError(t, err)
+
+		// Test PID method
+		pid := proc.PID()
+		assert.Greater(t, pid, 0, "PID should be greater than 0")
+
+		// Wait for process to finish
+		err = proc.Wait()
+		assert.NoError(t, err)
+	})
+
+	t.Run("StdinPipe method coverage", func(t *testing.T) {
+		cmd := New()
+		ctx := context.Background()
+
+		// Start a process
+		proc, err := cmd.Start(ctx, "cat", []string{})
+		require.NoError(t, err)
+
+		// Test StdinPipe method after start (should fail)
+		stdin, err := proc.StdinPipe()
+		assert.Error(t, err, "StdinPipe should fail after process started")
+		assert.Nil(t, stdin)
+
+		// Wait for process to finish
+		err = proc.Wait()
+		assert.NoError(t, err)
 	})
 }

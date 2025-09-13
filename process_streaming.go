@@ -28,7 +28,9 @@ func (p *process) discardInternalOutput() {
 	logrus.Debug("starting output discard goroutine")
 
 	defer func() {
-		logrus.Debug("output discard goroutine finishing, closing stream channels")
+		logrus.Debug(
+			"output discard goroutine finishing, closing stream channels",
+		)
 		p.closeStreamChannels()
 	}()
 
@@ -64,7 +66,10 @@ func (p *process) discardInternalOutput() {
 
 		case line, ok := <-p.internalStderr:
 			if !ok {
-				logrus.Debugf("stderr channel closed after %d lines", stderrCount)
+				logrus.Debugf(
+					"stderr channel closed after %d lines",
+					stderrCount,
+				)
 
 				continue
 			}

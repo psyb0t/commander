@@ -388,10 +388,7 @@ func (p *mockProcess) SimulateStreamLine(line string) {
 	p.streamLines = append(p.streamLines, line)
 }
 
-func (p *mockProcess) Stop(
-	_ context.Context,
-	_ ...StopOption,
-) error {
+func (p *mockProcess) Stop(_ context.Context) error {
 	p.streamMu.Lock()
 	defer p.streamMu.Unlock()
 
@@ -402,6 +399,13 @@ func (p *mockProcess) Stop(
 
 func (p *mockProcess) Kill(ctx context.Context) error {
 	return p.Stop(ctx)
+}
+
+const mockPID = 99999
+
+func (p *mockProcess) PID() int {
+	// Mock processes don't have real PIDs
+	return mockPID
 }
 
 // Utility functions

@@ -489,3 +489,41 @@ func TestMockCommander_StreamAdvanced(t *testing.T) {
 		assert.Equal(t, []string{"line3", "line4"}, lines2)
 	})
 }
+
+func TestMockCommander_UncoveredMethods(t *testing.T) {
+	t.Run("CombinedOutput method coverage", func(t *testing.T) {
+		mock := NewMock()
+		mock.Expect("test").ReturnOutput([]byte("test output"))
+
+		output, err := mock.CombinedOutput(context.Background(), "test", []string{})
+		assert.NoError(t, err)
+		assert.Equal(t, []byte("test output"), output)
+	})
+
+	t.Run("mock process methods coverage", func(t *testing.T) {
+		mock := NewMock()
+		mock.Expect("test").ReturnOutput([]byte("test"))
+
+		proc, err := mock.Start(context.Background(), "test", []string{})
+		require.NoError(t, err)
+
+		// Test PID method
+		pid := proc.PID()
+		assert.Equal(t, 99999, pid) // Mock PID constant
+
+		// Test StdinPipe method
+		stdin, err := proc.StdinPipe()
+		assert.NoError(t, err)
+		assert.NotNil(t, stdin)
+
+		// Write to stdin and close
+		_, err = stdin.Write([]byte("test"))
+		assert.NoError(t, err)
+		err = stdin.Close()
+		assert.NoError(t, err)
+
+		// Test Kill method
+		err = proc.Kill(context.Background())
+		assert.NoError(t, err)
+	})
+}

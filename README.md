@@ -49,7 +49,7 @@ type Process interface {
     Wait() error                                            // Wait for the carnage to finish ⏰💀
     StdinPipe() (io.WriteCloser, error)                    // Feed the machine - VIOLATE EVERYTHING! 🚰🔪
     Stream(stdout, stderr chan<- string)                    // Stream the chaos live - witness the violence! 🌍💻📡⚡
-    Stop(ctx context.Context, opts ...StopOption) error     // They picked the wrong god to pray to! ⚰️👹💀
+    Stop(ctx context.Context) error                         // They picked the wrong god to pray to! ⚰️👹💀
     Kill(ctx context.Context) error                        // Somebody stop me from this beautiful murder! 🔫💥💚
 }
 ```
@@ -61,13 +61,8 @@ type Process interface {
 func WithStdin(stdin io.Reader) Option        // Feed the beast - it's party time! 🍽️👹🎉
 func WithEnv(env []string) Option            // Corrupt the environment - spawn the chaos! 🌍💻🔥👺
 func WithDir(dir string) Option              // Choose your battlefield - violate everything holy! 📁🗂️⚰️
-func WithTimeout(timeout time.Duration) Option // Set your death timer - they picked the wrong god! ⏰💀🔥
 ```
 
-**Process Stop Options:**
-```go
-func WithSignal(signal syscall.Signal) StopOption // Choose your weapon of destruction! 💀⚔️🔥
-```
 
 ## Basic Usage 💚⚔️ - The fundamentals of digital violence 🔥💀
 
@@ -241,7 +236,7 @@ func killWithStyle() {
     stopCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
     defer cancel()
     
-    err = proc.Stop(stopCtx, commander.WithSignal(syscall.SIGINT))
+    err = proc.Stop(stopCtx)
     if err != nil {
         fmt.Printf("Process stopped with: %v\n", err)
     }
@@ -260,7 +255,7 @@ func useUserSignals() {
     stopCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
     defer cancel()
     
-    err = proc.Stop(stopCtx, commander.WithSignal(syscall.SIGUSR1))
+    err = proc.Stop(stopCtx)
     if err != nil {
         fmt.Printf("Nginx graceful reload result: %v\n", err)
     }
@@ -304,21 +299,6 @@ func stopWithTimeout() {
 }
 ```
 
-### WithTimeout Option (For Command Execution)
-```go
-func optionTimeout() {
-    cmd := commander.New()
-    ctx := context.Background()
-
-    // Using the WithTimeout option for command execution - LIKE A GLOVE!
-    err := cmd.Run(ctx, "sleep", []string{"10"}, 
-        commander.WithTimeout(2*time.Second))
-    
-    if errors.Is(err, commonerrors.ErrTimeout) {
-        fmt.Println("Timeout option worked! Do NOT go in there!")
-    }
-}
-```
 
 ## API Migration Guide 🔄 - From the old shit to the new hotness
 
@@ -335,8 +315,8 @@ stopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 defer cancel()
 err := proc.Stop(stopCtx) // One source of truth for timeouts
 
-// With custom signals
-err := proc.Stop(stopCtx, commander.WithSignal(syscall.SIGINT))
+// Graceful stop with SIGTERM then SIGKILL
+err := proc.Stop(stopCtx)
 
 // No timeout? No problem - immediate force kill
 err := proc.Stop(context.Background()) // No deadline = force kill
@@ -413,11 +393,14 @@ func kitchenSinkExample() {
 
     input := strings.NewReader("some input data")
     
-    stdout, stderr, err := cmd.Output(ctx, "cat", nil,
+    // Use context timeout instead of WithTimeout option
+    timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+    defer cancel()
+
+    stdout, stderr, err := cmd.Output(timeoutCtx, "cat", nil,
         commander.WithStdin(input),
         commander.WithDir("/tmp"),
-        commander.WithEnv([]string{"LANG=en_US.UTF-8"}),
-        commander.WithTimeout(10*time.Second))
+        commander.WithEnv([]string{"LANG=en_US.UTF-8"}))
     
     if err != nil {
         log.Fatal("Kitchen sink failed:", err)
@@ -751,8 +734,9 @@ func deployApp(cmd commander.Commander) error {
     }
 
     fmt.Println("🧪 Running tests...")
-    err = cmd.Run(ctx, "go", []string{"test", "./..."},
-        commander.WithTimeout(5*time.Minute))
+    testCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+    defer cancel()
+    err = cmd.Run(testCtx, "go", []string{"test", "./..."})
     if err != nil {
         return fmt.Errorf("tests failed: %w", err)
     }
@@ -764,8 +748,9 @@ func deployApp(cmd commander.Commander) error {
     }
 
     fmt.Println("🚀 Pushing to registry...")
-    err = cmd.Run(ctx, "docker", []string{"push", "myapp:latest"},
-        commander.WithTimeout(10*time.Minute))
+    pushCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+    defer cancel()
+    err = cmd.Run(pushCtx, "docker", []string{"push", "myapp:latest"})
     if err != nil {
         return fmt.Errorf("docker push failed: %w", err)
     }
