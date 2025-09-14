@@ -51,6 +51,7 @@ type Process interface {
     Stream(stdout, stderr chan<- string)                    // Stream the chaos live - witness the violence! 🌍💻📡⚡
     Stop(ctx context.Context) error                         // They picked the wrong god to pray to! ⚰️👹💀
     Kill(ctx context.Context) error                        // Somebody stop me from this beautiful murder! 🔫💥💚
+    PID() int                                               // Get the process ID - know thy enemy! 🎯👹🔢
 }
 ```
 
@@ -115,7 +116,17 @@ func main() {
 Want to see what's happening while it's happening? Here's how you stream dat shit live - it's well good:
 
 ```go
-func streamingExample() {
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    "github.com/psyb0t/commander"
+)
+
+func main() {
     cmd := commander.New()
     ctx := context.Background()
 
@@ -159,7 +170,20 @@ func streamingExample() {
 
 ### Graceful Termination
 ```go
-func gracefulTermination() {
+package main
+
+import (
+    "context"
+    "errors"
+    "fmt"
+    "log"
+    "time"
+
+    "github.com/psyb0t/commander"
+    commonerrors "github.com/psyb0t/common-go/errors"
+)
+
+func main() {
     cmd := commander.New()
     ctx := context.Background()
 
