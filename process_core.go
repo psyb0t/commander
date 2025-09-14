@@ -3,6 +3,7 @@ package commander
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os/exec"
 	"strings"
@@ -45,6 +46,8 @@ type process struct {
 	cmdWaitOnce    sync.Once
 	cmdWaitResult  error
 	waitCh         chan struct{}
+	stderrBuffer   []string
+	stderrMu       sync.Mutex
 }
 
 // cmdWait ensures cmd.Wait() is only called once, even from multiple goroutines
@@ -72,7 +75,10 @@ func (p *process) Wait() error {
 	if p.cmd.Process == nil {
 		logrus.Debug("waiting for process to finish (no PID available)")
 	} else {
-		logrus.Debugf("waiting for process PID %d to finish", p.cmd.Process.Pid)
+		logrus.Debugf(
+			"waiting for process PID %d to finish",
+			p.cmd.Process.Pid,
+		)
 	}
 
 	err := p.cmdWait()
@@ -80,7 +86,10 @@ func (p *process) Wait() error {
 	if p.cmd.Process == nil {
 		logrus.Debug("process finished")
 	} else {
-		logrus.Debugf("process PID %d finished", p.cmd.Process.Pid)
+		logrus.Debugf(
+			"process PID %d finished",
+			p.cmd.Process.Pid,
+		)
 	}
 
 	if err != nil {
@@ -95,6 +104,22 @@ func (p *process) Wait() error {
 func (p *process) handleWaitError(err error) error {
 	logrus.Debugf("process wait failed with error: %v", err)
 
+	// Check if this is an exit error with status > 0
+	var exitError *exec.ExitError
+	if errors.As(err, &exitError) && exitError.ExitCode() > 0 {
+		p.stderrMu.Lock()
+		stderrContent := strings.Join(p.stderrBuffer, "\n")
+		p.stderrMu.Unlock()
+
+		return ctxerrors.Wrap(commonerrors.ErrFailed,
+			fmt.Sprintf(
+				"(exit %d): %s",
+				exitError.ExitCode(),
+				stderrContent,
+			),
+		)
+	}
+
 	signal := getTerminationSignal(err)
 	logrus.Debugf("process terminated by signal: %v", signal)
 
@@ -107,7 +132,12 @@ func (p *process) handleWaitError(err error) error {
 	if isKilledBySignal(err) {
 		logrus.Debug("process was killed by SIGKILL")
 
-		if p.execCtx != nil && errors.Is(p.execCtx.ctx.Err(), context.DeadlineExceeded) {
+		isErrDeadline := errors.Is(
+			p.execCtx.ctx.Err(),
+			context.DeadlineExceeded,
+		)
+
+		if p.execCtx != nil && isErrDeadline {
 			return commonerrors.ErrTimeout
 		}
 

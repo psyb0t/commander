@@ -3,7 +3,7 @@ module github.com/psyb0t/commander
 go 1.24.6
 
 require (
-	github.com/psyb0t/common-go v0.0.0-20250907173145-c4cfc4dd3862
+	github.com/psyb0t/common-go v0.0.0-20250914061813-a517b076b64a
 	github.com/psyb0t/ctxerrors v0.1.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.11.1

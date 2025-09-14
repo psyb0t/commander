@@ -700,7 +700,7 @@ github.com/prometheus/common/model
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
-# github.com/psyb0t/common-go v0.0.0-20250907173145-c4cfc4dd3862
+# github.com/psyb0t/common-go v0.0.0-20250914061813-a517b076b64a
 ## explicit; go 1.24.6
 github.com/psyb0t/common-go/errors
 # github.com/psyb0t/ctxerrors v0.1.0

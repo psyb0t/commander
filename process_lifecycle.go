@@ -131,6 +131,11 @@ func (p *process) readStderr(stderr io.ReadCloser) {
 
 			return
 		case p.internalStderr <- line:
+			// Add to buffer for error reporting
+			p.stderrMu.Lock()
+			p.stderrBuffer = append(p.stderrBuffer, line)
+			p.stderrMu.Unlock()
+
 			logrus.Debugf("stderr line %d: %s", lineCount, line)
 		}
 	}

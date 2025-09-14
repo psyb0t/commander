@@ -33,6 +33,7 @@ var (
 	ErrNotFound                  = errors.New("not found")
 
 	// Process State errors
+	ErrFailed     = errors.New("failed")
 	ErrTimeout    = errors.New("timeout")
 	ErrTerminated = errors.New("terminated")
 	ErrKilled     = errors.New("killed")
