@@ -1930,7 +1930,7 @@ func TestCommander_RaceConditions(t *testing.T) {
 				t.Errorf("Inconsistent results: first=%v, index %d=%v", firstResult, i, results[i])
 			} else {
 				// Both are errors - they should be equivalent
-				assert.Contains(t, results[i].Error(), "exit status 1",
+				assert.Contains(t, results[i].Error(), "(exit 1)",
 					"All Wait() calls should return equivalent error")
 			}
 		}
