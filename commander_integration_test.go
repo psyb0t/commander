@@ -2141,3 +2141,135 @@ func TestCommander_UncoveredMethods(t *testing.T) {
 		assert.NoError(t, err)
 	})
 }
+
+func TestCommander_ProcessGroupKilling(t *testing.T) {
+	t.Run("kills child processes with parent on graceful stop", func(t *testing.T) {
+		cmd := New()
+		ctx := context.Background()
+
+		// Create a bash script that spawns child processes
+		script := `
+echo "Parent starting with PID $$"
+# Spawn background children
+sleep 30 &
+child1=$!
+echo "Child 1 PID: $child1"
+sleep 30 &
+child2=$!
+echo "Child 2 PID: $child2"
+# Wait for any child to exit
+wait -n
+`
+
+		proc, err := cmd.Start(ctx, "bash", []string{"-c", script})
+		require.NoError(t, err, "Should start parent process")
+
+		// Give time for children to spawn
+		time.Sleep(1 * time.Second)
+
+		parentPID := proc.PID()
+		assert.Greater(t, parentPID, 0, "Should have valid parent PID")
+
+		// Check for child processes in the same process group
+		checkCmd := exec.Command("ps", "-g", fmt.Sprintf("%d", parentPID), "-o", "pid,comm", "--no-headers")
+		output, err := checkCmd.CombinedOutput()
+		if err == nil {
+			processCount := len(strings.Split(strings.TrimSpace(string(output)), "\n"))
+			t.Logf("Found %d processes in group before stop", processCount)
+			assert.Greater(t, processCount, 1, "Should have parent and child processes")
+		}
+
+		// Stop gracefully
+		stopCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+		defer cancel()
+
+		err = proc.Stop(stopCtx)
+		assert.Error(t, err, "Should return error (terminated)")
+		assert.True(t, errors.Is(err, commonerrors.ErrTerminated), "Should be terminated error")
+
+		// Verify no processes remain in the group
+		time.Sleep(500 * time.Millisecond)
+		checkCmdAfter := exec.Command("ps", "-g", fmt.Sprintf("%d", parentPID), "-o", "pid", "--no-headers")
+		outputAfter, _ := checkCmdAfter.CombinedOutput()
+		remainingProcesses := strings.TrimSpace(string(outputAfter))
+
+		if remainingProcesses != "" {
+			t.Errorf("Found remaining processes after stop: %s", remainingProcesses)
+		}
+	})
+
+	t.Run("force kills stubborn processes and children with SIGKILL", func(t *testing.T) {
+		cmd := New()
+		ctx := context.Background()
+
+		// Create a stubborn script that ignores SIGTERM
+		script := `
+trap 'echo "Ignoring SIGTERM"; sleep 0.1' TERM
+echo "Stubborn parent PID $$"
+# Spawn stubborn child
+(
+    trap 'echo "Child ignoring SIGTERM"; sleep 0.1' TERM
+    while true; do sleep 0.1; done
+) &
+child_pid=$!
+echo "Stubborn child PID: $child_pid"
+# Keep running until killed
+while true; do sleep 0.1; done
+`
+
+		proc, err := cmd.Start(ctx, "bash", []string{"-c", script})
+		require.NoError(t, err, "Should start stubborn process")
+
+		// Give time for child to spawn
+		time.Sleep(1 * time.Second)
+
+		parentPID := proc.PID()
+
+		// Stop with short timeout to force SIGKILL
+		stopCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		defer cancel()
+
+		err = proc.Stop(stopCtx)
+		assert.Error(t, err, "Should return error (killed)")
+		assert.True(t, errors.Is(err, commonerrors.ErrKilled), "Should be killed error")
+
+		// Verify everything is dead
+		time.Sleep(500 * time.Millisecond)
+		checkCmd := exec.Command("ps", "-g", fmt.Sprintf("%d", parentPID), "-o", "pid", "--no-headers")
+		output, _ := checkCmd.CombinedOutput()
+		remainingProcesses := strings.TrimSpace(string(output))
+
+		if remainingProcesses != "" {
+			t.Errorf("Found remaining processes after SIGKILL: %s", remainingProcesses)
+		}
+	})
+
+	t.Run("handles process without children gracefully", func(t *testing.T) {
+		cmd := New()
+		ctx := context.Background()
+
+		// Simple process without children
+		proc, err := cmd.Start(ctx, "sleep", []string{"5"})
+		require.NoError(t, err, "Should start simple process")
+
+		parentPID := proc.PID()
+		assert.Greater(t, parentPID, 0, "Should have valid PID")
+
+		// Stop immediately
+		stopCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+
+		err = proc.Stop(stopCtx)
+		assert.Error(t, err, "Should return error")
+		assert.True(t, errors.Is(err, commonerrors.ErrTerminated) || errors.Is(err, commonerrors.ErrKilled),
+			"Should be terminated or killed")
+
+		// Verify process is gone
+		time.Sleep(100 * time.Millisecond)
+		checkCmd := exec.Command("ps", "-p", fmt.Sprintf("%d", parentPID), "-o", "pid", "--no-headers")
+		output, _ := checkCmd.CombinedOutput()
+		remainingProcess := strings.TrimSpace(string(output))
+
+		assert.Equal(t, "", remainingProcess, "Process should be completely gone")
+	})
+}

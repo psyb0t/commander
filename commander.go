@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"os/exec"
+	"syscall"
 
 	"github.com/sirupsen/logrus"
 )
@@ -189,6 +190,9 @@ func (c *commander) createCmd(
 		cmd.Env = opts.Env
 		cmd.Dir = opts.Dir
 	}
+
+	// Set process group so we can kill child processes
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	return cmd
 }

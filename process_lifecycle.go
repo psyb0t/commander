@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"os"
 	"syscall"
 	"time"
 
@@ -221,14 +220,15 @@ func (p *process) setupTimeoutContext(
 	return ctx, nil
 }
 
-// sendSIGTERM sends SIGTERM signal to process
+// sendSIGTERM sends SIGTERM signal to process group
 func (p *process) sendSIGTERM() error {
 	pid := p.cmd.Process.Pid
-	logrus.Debugf("sending SIGTERM to process PID %d", pid)
+	logrus.Debugf("sending SIGTERM to process group PID %d", pid)
 
-	if err := p.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+	// Kill entire process group to catch child processes
+	if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
 		logrus.Debugf(
-			"failed to send SIGTERM to process PID %d: %v", pid, err)
+			"failed to send SIGTERM to process group PID %d: %v", pid, err)
 
 		return ctxerrors.Wrap(err, "failed to send SIGTERM")
 	}
@@ -285,36 +285,45 @@ func (p *process) handleProcessTimeout(timeoutCtx context.Context) error {
 	pid := p.cmd.Process.Pid
 
 	if errors.Is(timeoutCtx.Err(), context.DeadlineExceeded) {
-		logrus.Debugf("graceful shutdown timeout for process PID %d, force killing", pid)
+		logrus.Debugf(
+			"graceful shutdown timeout for process PID %d, force killing",
+			pid,
+		)
+
 		p.forceKillProcess()
 
 		return commonerrors.ErrKilled
 	}
 
-	logrus.Debugf("context cancelled for process PID %d, force killing", pid)
+	logrus.Debugf(
+		"context cancelled for process PID %d, force killing",
+		pid,
+	)
+
 	p.forceKillProcess()
 
 	return commonerrors.ErrKilled
 }
 
-// forceKillProcess immediately kills process with SIGKILL
+// forceKillProcess immediately kills process group with SIGKILL
 func (p *process) forceKillProcess() {
 	pid := p.cmd.Process.Pid
-	logrus.Debugf("force killing process PID %d (SIGKILL)", pid)
+	logrus.Debugf("force killing process group PID %d (SIGKILL)", pid)
 
-	if err := p.cmd.Process.Kill(); err != nil {
-		if errors.Is(err, os.ErrProcessDone) {
-			logrus.Debugf("process PID %d was already finished", pid)
+	// Kill entire process group to catch child processes
+	if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil {
+		if errors.Is(err, syscall.ESRCH) {
+			logrus.Debugf("process group PID %d was already finished", pid)
 
 			return
 		}
 
-		logrus.Debugf("failed to force kill process PID %d: %v", pid, err)
+		logrus.Debugf("failed to force kill process group PID %d: %v", pid, err)
 
 		return
 	}
 
-	logrus.Debugf("SIGKILL sent to process PID %d, waiting for process to exit", pid)
+	logrus.Debugf("SIGKILL sent to process group PID %d, waiting for process to exit", pid)
 
 	// Wait for process to exit after SIGKILL
 	err := p.cmdWait()
