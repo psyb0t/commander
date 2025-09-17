@@ -1,7 +1,15 @@
 package commander
 
 import (
+	"time"
+
 	"github.com/sirupsen/logrus"
+)
+
+const (
+	// channelSendTimeout is the maximum time to wait when sending to a channel
+	// before considering it blocked and marking it as nil
+	channelSendTimeout = 100 * time.Millisecond
 )
 
 // Stream sends live output to separate stdout and stderr channels
@@ -108,13 +116,23 @@ func (p *process) broadcastToStdout(line string) {
 	for i := len(p.streamChans) - 1; i >= 0; i-- {
 		channels := p.streamChans[i]
 		if channels.stdout != nil {
-			select {
-			case channels.stdout <- line:
-				// Successfully sent
-			default:
-				// Channel is blocked or closed, mark stdout as nil
-				p.streamChans[i].stdout = nil
-			}
+			// Safely send to channel with recover to handle send-on-closed-channel panic
+			func() {
+				defer func() {
+					if recover() != nil {
+						// Channel was closed, mark it as nil
+						p.streamChans[i].stdout = nil
+					}
+				}()
+
+				select {
+				case channels.stdout <- line:
+					// Successfully sent
+				case <-time.After(channelSendTimeout):
+					// Channel is blocked for too long, mark stdout as nil
+					p.streamChans[i].stdout = nil
+				}
+			}()
 		}
 	}
 }
@@ -132,29 +150,64 @@ func (p *process) broadcastToStderr(line string) {
 	for i := len(p.streamChans) - 1; i >= 0; i-- {
 		channels := p.streamChans[i]
 		if channels.stderr != nil {
-			select {
-			case channels.stderr <- line:
-				// Successfully sent
-			default:
-				// Channel is blocked or closed, mark stderr as nil
-				p.streamChans[i].stderr = nil
-			}
+			// Safely send to channel with recover to handle send-on-closed-channel panic
+			func() {
+				defer func() {
+					if recover() != nil {
+						// Channel was closed, mark it as nil
+						p.streamChans[i].stderr = nil
+					}
+				}()
+
+				select {
+				case channels.stderr <- line:
+					// Successfully sent
+				case <-time.After(channelSendTimeout):
+					// Channel is blocked for too long, mark stderr as nil
+					p.streamChans[i].stderr = nil
+				}
+			}()
 		}
 	}
 }
 
-// closeStreamChannels closes all active stream channels
+// closeStreamChannels closes all active stream channels safely
 func (p *process) closeStreamChannels() {
 	p.streamMu.Lock()
 	defer p.streamMu.Unlock()
 
+	// If channels are already closed, return early
+	if p.streamChans == nil {
+		return
+	}
+
 	for _, channels := range p.streamChans {
 		if channels.stdout != nil {
-			close(channels.stdout)
+			// Safely close channel with recover to handle double-close panic
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						// Channel was already closed, ignore the panic
+						logrus.Warnf("channel already closed: %v", r)
+					}
+				}()
+
+				close(channels.stdout)
+			}()
 		}
 
 		if channels.stderr != nil {
-			close(channels.stderr)
+			// Safely close channel with recover to handle double-close panic
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						// Channel was already closed, ignore the panic
+						logrus.Warnf("channel already closed: %v", r)
+					}
+				}()
+
+				close(channels.stderr)
+			}()
 		}
 	}
 

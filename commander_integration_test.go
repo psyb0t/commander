@@ -1669,7 +1669,7 @@ func TestCommander_SignalTermination(t *testing.T) {
 				if tt.name == "immediate_SIGKILL" {
 					isKilled := errors.Is(waitErr, commonerrors.ErrKilled)
 					isTerminated := errors.Is(waitErr, commonerrors.ErrTerminated)
-					assert.True(t, isKilled || isTerminated, 
+					assert.True(t, isKilled || isTerminated,
 						"Wait() should return ErrKilled or ErrTerminated for immediate kill, got: %v", waitErr)
 				} else {
 					assert.ErrorIs(t, waitErr, tt.expectedError, "Wait() should return same error as Stop()")
@@ -1997,14 +1997,14 @@ func TestCommander_RaceConditions(t *testing.T) {
 		// Mix of different concurrent operations
 		operations := []func(int){
 			func(i int) { results[i] = proc.Wait() },
-			func(i int) { 
+			func(i int) {
 				stopCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
 				defer cancel()
 				results[i] = proc.Stop(stopCtx)
 			},
 			func(i int) { results[i] = proc.Kill(ctx) },
 			func(i int) { results[i] = proc.Wait() },
-			func(i int) { 
+			func(i int) {
 				stopCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
 				defer cancel()
 				results[i] = proc.Stop(stopCtx)
@@ -2271,5 +2271,133 @@ while true; do sleep 0.1; done
 		remainingProcess := strings.TrimSpace(string(output))
 
 		assert.Equal(t, "", remainingProcess, "Process should be completely gone")
+	})
+}
+
+// TestCommander_ChannelRaceCondition tests the specific race condition that was causing
+// "send on closed channel" and "close of closed channel" panics
+func TestCommander_ChannelRaceCondition(t *testing.T) {
+	t.Run("concurrent streaming and process termination", func(t *testing.T) {
+		// This test attempts to reproduce the race condition where:
+		// 1. discardInternalOutput() calls closeStreamChannels() in defer
+		// 2. broadcastToStdout/Stderr try to send to those channels concurrently
+		// 3. Multiple closeStreamChannels() calls happen simultaneously
+
+		const numIterations = 50
+		const numConcurrentStreams = 10
+
+		for range numIterations {
+			cmd := New()
+			ctx := context.Background()
+
+			proc, err := cmd.Start(ctx, "sh", []string{"-c", "for i in $(seq 1 100); do echo line $i; echo error $i >&2; sleep 0.01; done"})
+			require.NoError(t, err)
+
+			// Start multiple concurrent streams to increase chance of race condition
+			var wg sync.WaitGroup
+			channels := make([]struct {
+				stdout chan string
+				stderr chan string
+			}, numConcurrentStreams)
+
+			for j := range numConcurrentStreams {
+				channels[j].stdout = make(chan string, 10)
+				channels[j].stderr = make(chan string, 10)
+
+				proc.Stream(channels[j].stdout, channels[j].stderr)
+
+				wg.Add(1)
+				go func(idx int) {
+					defer wg.Done()
+					// Read from channels in goroutines
+					for {
+						select {
+						case line, ok := <-channels[idx].stdout:
+							if !ok {
+								return
+							}
+							_ = line // Consume the output
+						case line, ok := <-channels[idx].stderr:
+							if !ok {
+								continue
+							}
+							_ = line // Consume the output
+						case <-time.After(100 * time.Millisecond):
+							return
+						}
+					}
+				}(j)
+			}
+
+			// Let the process run briefly to generate output and start streaming
+			time.Sleep(10 * time.Millisecond)
+
+			// Force immediate termination to trigger the race condition
+			stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
+			defer cancel()
+
+			// This should not panic even with concurrent streaming and channel operations
+			err = proc.Stop(stopCtx)
+			// We expect either a timeout/kill or clean termination, both are ok for this test
+			if err != nil {
+				require.True(t, errors.Is(err, commonerrors.ErrKilled) || errors.Is(err, commonerrors.ErrTerminated),
+					"Should be killed or terminated, got: %v", err)
+			}
+
+			// Wait for all streaming goroutines to finish
+			done := make(chan struct{})
+			go func() {
+				wg.Wait()
+				close(done)
+			}()
+
+			select {
+			case <-done:
+				// Good, all goroutines finished
+			case <-time.After(2 * time.Second):
+				t.Fatal("Goroutines didn't finish in time, possible deadlock")
+			}
+		}
+
+		t.Logf("Successfully completed %d iterations without channel panics", numIterations)
+	})
+
+	t.Run("rapid start-stop cycles with streaming", func(t *testing.T) {
+		// Test rapid start-stop cycles that could trigger multiple closeStreamChannels calls
+		const numCycles = 20
+
+		for range numCycles {
+			cmd := New()
+			ctx := context.Background()
+
+			proc, err := cmd.Start(ctx, "sh", []string{"-c", "echo rapid test; sleep 0.1"})
+			require.NoError(t, err)
+
+			stdout := make(chan string, 5)
+			stderr := make(chan string, 5)
+			proc.Stream(stdout, stderr)
+
+			// Immediately stop the process to force race conditions
+			go func() {
+				time.Sleep(1 * time.Millisecond)
+				_ = proc.Stop(context.Background())
+			}()
+
+			// Try to read from streams while process is being stopped
+			select {
+			case <-stdout:
+				// Got output, good
+			case <-time.After(50 * time.Millisecond):
+				// Timeout, process likely stopped before output
+			}
+
+			// Ensure process is fully stopped
+			err = proc.Wait()
+			if err != nil && !errors.Is(err, commonerrors.ErrTerminated) && !errors.Is(err, commonerrors.ErrKilled) {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+		}
+
+		t.Logf("Successfully completed %d rapid start-stop cycles without panics", numCycles)
 	})
 }
