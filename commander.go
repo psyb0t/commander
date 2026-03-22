@@ -7,8 +7,6 @@ import (
 	"log/slog"
 	"os/exec"
 	"syscall"
-
-	_ "github.com/psyb0t/slog-configurator" // configures slog via init()
 )
 
 type Commander interface {

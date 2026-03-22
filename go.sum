@@ -498,10 +498,6 @@ github.com/psyb0t/common-go v0.0.0-20250914061813-a517b076b64a h1:q6/ae0uVyUbx68
 github.com/psyb0t/common-go v0.0.0-20250914061813-a517b076b64a/go.mod h1:maibL2s0Z45LBYwBzw47bigfOGLNdYDEesWntJ6T518=
 github.com/psyb0t/ctxerrors v0.1.0 h1:xPqYFSR6cUhkxwlW1euc3sde7tmy3lICeAim1pV1fEY=
 github.com/psyb0t/ctxerrors v0.1.0/go.mod h1:JTaOBio8b2e/2k+6nFeyB1D3ME7ul+SYLlRSVrC4tbM=
-github.com/psyb0t/gonfiguration v1.5.0 h1:B+OrSE060/vgonFI8HKzchradwnEAGvgrNT5KKVXhdU=
-github.com/psyb0t/gonfiguration v1.5.0/go.mod h1:Do7kyHmiD/zQeHzZfriLaRfN4QYSgVTjc2oQsZgysY8=
-github.com/psyb0t/slog-configurator v1.0.0 h1:l4pVQq8LbBEcV4/qIuA+D9JuezuYZnr+74CthNl+Mgg=
-github.com/psyb0t/slog-configurator v1.0.0/go.mod h1:VVvUUF6ivG8nDXUOgpARLRFgrY2B6bq6P5GxbHGnI1I=
 github.com/quasilyte/go-ruleguard v0.4.5 h1:AGY0tiOT5hJX9BTdx/xBdoCubQUAE2grkqY2lSwvZcA=
 github.com/quasilyte/go-ruleguard v0.4.5/go.mod h1:Vl05zJ538vcEEwu16V/Hdu7IYZWyKSwIy4c88Ro1kRE=
 github.com/quasilyte/go-ruleguard/dsl v0.3.23 h1:lxjt5B6ZCiBeeNO8/oQsegE6fLeCzuMRoVWSkXC4uvY=

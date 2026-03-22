@@ -750,12 +750,6 @@ github.com/psyb0t/common-go/errors
 # github.com/psyb0t/ctxerrors v0.1.0
 ## explicit; go 1.24.6
 github.com/psyb0t/ctxerrors
-# github.com/psyb0t/gonfiguration v1.5.0
-## explicit; go 1.25
-github.com/psyb0t/gonfiguration
-# github.com/psyb0t/slog-configurator v1.0.0
-## explicit; go 1.25
-github.com/psyb0t/slog-configurator
 # github.com/quasilyte/go-ruleguard v0.4.5
 ## explicit; go 1.22.0
 github.com/quasilyte/go-ruleguard/internal/goenv

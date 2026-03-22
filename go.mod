@@ -5,7 +5,6 @@ go 1.25
 require (
 	github.com/psyb0t/common-go v0.0.0-20250914061813-a517b076b64a
 	github.com/psyb0t/ctxerrors v0.1.0
-	github.com/psyb0t/slog-configurator v1.0.0
 	github.com/stretchr/testify v1.11.1
 )
 
@@ -152,7 +151,6 @@ require (
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
-	github.com/psyb0t/gonfiguration v1.5.0 // indirect
 	github.com/quasilyte/go-ruleguard v0.4.5 // indirect
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23 // indirect
 	github.com/quasilyte/gogrep v0.5.0 // indirect
