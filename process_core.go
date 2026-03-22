@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os/exec"
 	"strings"
 	"sync"
@@ -12,7 +13,6 @@ import (
 
 	commonerrors "github.com/psyb0t/common-go/errors"
 	"github.com/psyb0t/ctxerrors"
-	"github.com/sirupsen/logrus"
 )
 
 type Process interface {
@@ -53,10 +53,10 @@ type process struct {
 // cmdWait ensures cmd.Wait() is only called once, even from multiple goroutines
 func (p *process) cmdWait() error {
 	p.cmdWaitOnce.Do(func() {
-		logrus.Debug("calling cmd.Wait()")
+		slog.Debug("calling cmd.Wait()")
 
 		p.cmdWaitResult = p.cmd.Wait()
-		logrus.Debugf("cmd.Wait() completed with result: %v", p.cmdWaitResult)
+		slog.Debug("cmd.Wait() completed", "result", p.cmdWaitResult)
 		close(p.waitCh)
 	})
 
@@ -66,43 +66,37 @@ func (p *process) cmdWait() error {
 }
 
 func (p *process) Wait() error {
-	logrus.Debug("waiting for process to complete")
+	slog.Debug("waiting for process to complete")
 
 	defer func() {
 		_ = p.Stop(context.Background())
 	}()
 
 	if p.cmd.Process == nil {
-		logrus.Debug("waiting for process to finish (no PID available)")
+		slog.Debug("waiting for process to finish (no PID available)")
 	} else {
-		logrus.Debugf(
-			"waiting for process PID %d to finish",
-			p.cmd.Process.Pid,
-		)
+		slog.Debug("waiting for process to finish", "pid", p.cmd.Process.Pid)
 	}
 
 	err := p.cmdWait()
 
 	if p.cmd.Process == nil {
-		logrus.Debug("process finished")
+		slog.Debug("process finished")
 	} else {
-		logrus.Debugf(
-			"process PID %d finished",
-			p.cmd.Process.Pid,
-		)
+		slog.Debug("process finished", "pid", p.cmd.Process.Pid)
 	}
 
 	if err != nil {
 		return p.handleWaitError(err)
 	}
 
-	logrus.Debug("process completed successfully")
+	slog.Debug("process completed successfully")
 
 	return nil
 }
 
 func (p *process) handleWaitError(err error) error {
-	logrus.Debugf("process wait failed with error: %v", err)
+	slog.Debug("process wait failed", "error", err)
 
 	// Check if this is an exit error with status > 0
 	var exitError *exec.ExitError
@@ -121,16 +115,16 @@ func (p *process) handleWaitError(err error) error {
 	}
 
 	signal := getTerminationSignal(err)
-	logrus.Debugf("process terminated by signal: %v", signal)
+	slog.Debug("process terminated by signal", "signal", signal)
 
 	if signal == syscall.SIGTERM {
-		logrus.Debug("process was terminated by SIGTERM")
+		slog.Debug("process was terminated by SIGTERM")
 
 		return commonerrors.ErrTerminated
 	}
 
 	if isKilledBySignal(err) {
-		logrus.Debug("process was killed by SIGKILL")
+		slog.Debug("process was killed by SIGKILL")
 
 		isErrDeadline := errors.Is(
 			p.execCtx.ctx.Err(),
@@ -166,16 +160,16 @@ func (p *process) Kill(_ context.Context) error {
 	p.terminateOnce.Do(func() {
 		defer p.cleanup()
 
-		logrus.Debug("performing immediate kill")
+		slog.Debug("performing immediate kill")
 
 		if p.cmd.Process == nil {
-			logrus.Debug("kill requested but process has no PID - cleaning up anyway")
+			slog.Debug("kill requested but process has no PID - cleaning up anyway")
 
 			return
 		}
 
 		pid := p.cmd.Process.Pid
-		logrus.Debugf("force killing process PID %d", pid)
+		slog.Debug("force killing process", "pid", pid)
 		p.forceKillProcess()
 
 		killErr = commonerrors.ErrKilled
@@ -216,7 +210,7 @@ func getTerminationSignal(err error) syscall.Signal {
 	}
 
 	signal := status.Signal()
-	logrus.Debugf("process terminated by signal: %v", signal)
+	slog.Debug("process terminated by signal", "signal", signal)
 
 	return signal
 }

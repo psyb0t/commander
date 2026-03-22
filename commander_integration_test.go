@@ -1806,21 +1806,17 @@ func TestCommander_RaceConditions(t *testing.T) {
 		var waitErr, stopErr error
 
 		// Start Wait() in one goroutine
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			waitErr = proc.Wait()
-		}()
+		})
 
 		// Start Stop() in another goroutine after a short delay
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			time.Sleep(50 * time.Millisecond) // Let Wait() start first
 			stopCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
 			defer cancel()
 			stopErr = proc.Stop(stopCtx)
-		}()
+		})
 
 		// Both should complete without hanging or panicking
 		done := make(chan struct{})
@@ -1853,19 +1849,15 @@ func TestCommander_RaceConditions(t *testing.T) {
 		var waitErr, killErr error
 
 		// Start Wait() in one goroutine
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			waitErr = proc.Wait()
-		}()
+		})
 
 		// Start Kill() in another goroutine after a short delay
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			time.Sleep(50 * time.Millisecond)
 			killErr = proc.Kill(ctx)
-		}()
+		})
 
 		// Both should complete without hanging
 		done := make(chan struct{})

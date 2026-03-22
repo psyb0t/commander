@@ -3,11 +3,11 @@ package commander
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"os/exec"
 
 	commonerrors "github.com/psyb0t/common-go/errors"
 	"github.com/psyb0t/ctxerrors"
-	"github.com/sirupsen/logrus"
 )
 
 type executionContext struct {
@@ -35,12 +35,12 @@ func (c *commander) newExecutionContext(
 
 func (ec *executionContext) handleExecutionError(err error) error {
 	if err == nil {
-		logrus.Debugf("command completed successfully: %s %v", ec.name, ec.args)
+		slog.Debug("command completed successfully", "name", ec.name, "args", ec.args)
 
 		return nil
 	}
 
-	logrus.Debugf("command execution failed: %s %v - error: %v", ec.name, ec.args, err)
+	slog.Debug("command execution failed", "name", ec.name, "args", ec.args, "error", err)
 
 	if errors.Is(err, context.DeadlineExceeded) {
 		return commonerrors.ErrTimeout

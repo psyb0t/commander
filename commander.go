@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"os/exec"
 	"syscall"
 
-	"github.com/sirupsen/logrus"
+	_ "github.com/psyb0t/slog-configurator" // configures slog via init()
 )
 
 type Commander interface {
@@ -58,7 +59,7 @@ func (c *commander) Run(
 ) error {
 	options := c.buildOptions(opts...)
 	exec := c.newExecutionContext(ctx, name, args, options)
-	logrus.Debugf("running command: %s %v", name, args)
+	slog.Debug("running command", "name", name, "args", args)
 
 	return exec.handleExecutionError(exec.cmd.Run())
 }
@@ -123,11 +124,11 @@ func (c *commander) runWithOutput(
 	exec.cmd.Stdout = stdoutBuf
 	exec.cmd.Stderr = stderrBuf
 
-	logrus.Debugf("running command for output: %s %v", name, args)
+	slog.Debug("running command for output", "name", name, "args", args)
 
 	runErr := exec.cmd.Run()
 
-	logrus.Debug("command output captured")
+	slog.Debug("command output captured")
 
 	return exec.handleExecutionError(runErr)
 }
@@ -148,7 +149,7 @@ func (c *commander) Start(
 		options,
 	)
 
-	logrus.Debugf("starting command: %s %v", name, args)
+	slog.Debug("starting command", "name", name, "args", args)
 
 	proc := c.newProcess(execCtx.cmd, execCtx)
 	if err := proc.Start(); err != nil {

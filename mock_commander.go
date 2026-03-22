@@ -414,11 +414,12 @@ func argsToString(args []string) string {
 		return ""
 	}
 
-	result := args[0]
+	var result strings.Builder
+	result.WriteString(args[0])
 
 	for i := 1; i < len(args); i++ {
-		result += " " + args[i]
+		result.WriteString(" " + args[i])
 	}
 
-	return result
+	return result.String()
 }

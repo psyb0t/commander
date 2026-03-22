@@ -9,12 +9,16 @@ dep: ## Get project dependencies
 
 lint: ## Lint all Golang files
 	@echo "Linting all Go files..."
-	@go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest -test ./...
+	@out=$$(go tool modernize -test ./... 2>&1 | grep -v '\.gen\.go:') || true; \
+	if [ -n "$$out" ]; then echo "$$out"; exit 1; fi
 	@go tool golangci-lint run --timeout=30m0s ./...
 
 lint-fix: ## Lint all Golang files and fix
 	@echo "Linting all Go files..."
-	@go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest -fix -test ./...
+	@gen_files=$$(find . -name '*.gen.go' -not -path './vendor/*'); \
+	out=$$(go tool modernize -fix -test ./... 2>&1 | grep -v '\.gen\.go:') || true; \
+	if [ -n "$$gen_files" ]; then echo "$$gen_files" | xargs git checkout -- 2>/dev/null || true; fi; \
+	if [ -n "$$out" ]; then echo "$$out"; exit 1; fi
 	@go tool golangci-lint run --fix --timeout=30m0s ./...
 
 test: ## Run all tests
