@@ -3,3 +3,4 @@ coverage.*
 CLAUDE.md
 .test
 git-update.sh
+.research_files
