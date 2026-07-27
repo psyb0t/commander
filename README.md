@@ -1,5 +1,8 @@
 # Commander
 
+[![version](https://raw.githubusercontent.com/psyb0t/commander/badges/version.svg)](https://github.com/psyb0t/commander/releases)
+[![license](https://raw.githubusercontent.com/psyb0t/commander/badges/license.svg)](LICENSE)
+
 Go's `os/exec` made me want to shart on my laptop's screen.
 Every time I had to wire up pipes, babysit goroutines, and pray
 that `cmd.Wait()` wouldn't give me digital hemorrhoids, I died
