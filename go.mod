@@ -1,6 +1,6 @@
 module github.com/psyb0t/commander
 
-go 1.25
+go 1.26
 
 require (
 	github.com/psyb0t/common-go v0.0.0-20250914061813-a517b076b64a
@@ -209,7 +209,6 @@ require (
 	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/tools v0.40.0 // indirect
-	golang.org/x/tools/gopls v0.21.1 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -219,7 +218,4 @@ require (
 	mvdan.cc/unparam v0.0.0-20251027182757-5beb8c8f8f15 // indirect
 )
 
-tool (
-	github.com/golangci/golangci-lint/v2/cmd/golangci-lint
-	golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize
-)
+tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint

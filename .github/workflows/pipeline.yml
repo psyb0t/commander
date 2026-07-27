@@ -8,11 +8,14 @@ jobs:
     permissions:
       contents: write
     uses: psyb0t/reusable-github-workflows/.github/workflows/create-badges.yml@master
+    with:
+      coverage: true
 
   call-go-workflow:
     uses: psyb0t/reusable-github-workflows/.github/workflows/go-workflow.yml@master
     with:
-      go_version: "1.25"
+      go_version: "1.26"
       dep_command: "make dep"
       lint_command: "make lint"
       test_command: "make test-coverage"
+      coverage_file: "coverage-percent.txt"

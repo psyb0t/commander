@@ -1,5 +1,6 @@
 # Commander
 
+[![coverage](https://raw.githubusercontent.com/psyb0t/commander/badges/coverage.svg)](https://github.com/psyb0t/commander/actions/workflows/pipeline.yml)
 [![version](https://raw.githubusercontent.com/psyb0t/commander/badges/version.svg)](https://github.com/psyb0t/commander/releases)
 [![license](https://raw.githubusercontent.com/psyb0t/commander/badges/license.svg)](LICENSE)
 
