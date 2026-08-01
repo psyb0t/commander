@@ -2,6 +2,14 @@
 
 All notable changes per release. Versions follow [semver](https://semver.org).
 
+## v0.5.7 — 2026-08-01
+
+Infrastructure only — no library code changed.
+
+- Every branch and tag push is now mirrored to GitLab and Codeberg.
+- The default branch and tags are archived to the Wayback Machine and Software Heritage, on push and monthly.
+- Issues opened on the mirrors are pulled back into GitHub every six hours.
+
 ## v0.5.6 — 2026-07-27
 
 - Added a GitHub Actions CI status badge to the README.
