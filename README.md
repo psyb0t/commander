@@ -4,6 +4,7 @@
 [![coverage](https://raw.githubusercontent.com/psyb0t/commander/badges/coverage.svg)](https://github.com/psyb0t/commander/actions/workflows/pipeline.yml)
 [![version](https://raw.githubusercontent.com/psyb0t/commander/badges/version.svg)](https://github.com/psyb0t/commander/releases)
 [![license](https://raw.githubusercontent.com/psyb0t/commander/badges/license.svg)](LICENSE)
+[![imported by](https://raw.githubusercontent.com/psyb0t/commander/badges/importers.svg)](https://github.com/psyb0t/commander/blob/badges/importers.md)
 
 Go's `os/exec` made me want to shart on my laptop's screen.
 Every time I had to wire up pipes, babysit goroutines, and pray
