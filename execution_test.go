@@ -68,7 +68,6 @@ func TestExecutionContext_HandleExecutionError(t *testing.T) {
 	}
 }
 
-
 func TestNewExecutionContext(t *testing.T) {
 	cmd := &commander{}
 	ctx := context.Background()

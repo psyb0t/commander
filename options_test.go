@@ -34,7 +34,6 @@ func TestWithDir(t *testing.T) {
 	assert.Equal(t, dir, opts.Dir)
 }
 
-
 func TestMultipleOptions(t *testing.T) {
 	stdin := strings.NewReader("input")
 	env := []string{"TEST=true"}
