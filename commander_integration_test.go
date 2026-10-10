@@ -2393,3 +2393,85 @@ func TestCommander_ChannelRaceCondition(t *testing.T) {
 		t.Logf("Successfully completed %d rapid start-stop cycles without panics", numCycles)
 	})
 }
+
+// collectStreams reads both channels until commander closes them, so the
+// result holds every line that was delivered for the whole process.
+func collectStreams(
+	t *testing.T,
+	stdout, stderr <-chan string,
+) ([]string, []string) {
+	t.Helper()
+
+	var stdoutLines, stderrLines []string
+
+	timeout := time.After(5 * time.Second)
+
+	for stdout != nil || stderr != nil {
+		select {
+		case line, ok := <-stdout:
+			if !ok {
+				stdout = nil
+
+				continue
+			}
+
+			stdoutLines = append(stdoutLines, line)
+		case line, ok := <-stderr:
+			if !ok {
+				stderr = nil
+
+				continue
+			}
+
+			stderrLines = append(stderrLines, line)
+		case <-timeout:
+			t.Fatal("stream channels were never closed")
+		}
+	}
+
+	return stdoutLines, stderrLines
+}
+
+func TestCommander_StreamDeliversBothStreamsWhicheverClosesFirst(t *testing.T) {
+	t.Parallel()
+
+	// Each script sleeps first so Stream is registered before any output.
+	tests := []struct {
+		name       string
+		script     string
+		wantStdout []string
+		wantStderr []string
+	}{
+		{
+			name:       "stderr written after stdout closed",
+			script:     "sleep 0.1; echo out; exec 1>&-; sleep 0.2; echo late >&2",
+			wantStdout: []string{"out"},
+			wantStderr: []string{"late"},
+		},
+		{
+			name:       "stdout written after stderr closed",
+			script:     "sleep 0.1; echo early >&2; exec 2>&-; sleep 0.2; echo out",
+			wantStdout: []string{"out"},
+			wantStderr: []string{"early"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			proc, err := New().Start(context.Background(), "sh", []string{"-c", tt.script})
+			require.NoError(t, err)
+
+			stdout := make(chan string, 10)
+			stderr := make(chan string, 10)
+			proc.Stream(stdout, stderr)
+
+			stdoutLines, stderrLines := collectStreams(t, stdout, stderr)
+
+			assert.Equal(t, tt.wantStdout, stdoutLines)
+			assert.Equal(t, tt.wantStderr, stderrLines)
+			assert.NoError(t, proc.Wait())
+		})
+	}
+}
