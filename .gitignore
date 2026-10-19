@@ -5,6 +5,7 @@ sec.sarif
 CLAUDE.md
 .test
 git-update.sh
+git-update.sh.debot
 .research_files
 .testing/
 .agent_notes/
